@@ -781,8 +781,7 @@ async function subscribeToAlerts() {
       headers: {
         'apikey': SUPABASE_ANON_KEY,
         'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
-        'Content-Type': 'application/json',
-        'Prefer': 'resolution=merge-duplicates'
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         email:         email,
@@ -795,6 +794,13 @@ async function subscribeToAlerts() {
 
     if (!res.ok) {
       var err = await res.text();
+      if (err.includes('unique') || err.includes('23505')) {
+        msgEl.className = 'subscribe-msg ok';
+        msgEl.textContent = 'You\'re already subscribed for this location.';
+        btn.textContent = 'Subscribe to alerts';
+        btn.disabled = false;
+        return;
+      }
       throw new Error(err);
     }
 
