@@ -3,7 +3,7 @@ name: Send Frost Alerts
 on:
   # Run every morning at 5:00 UTC (= 6am UK winter / 6am BST summer)
   schedule:
-    - cron: '0 5 * * *'
+    - cron: '25 21 * * *'
   # Allow manual trigger from the Actions tab for testing
   workflow_dispatch:
 
