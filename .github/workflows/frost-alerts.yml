@@ -1,10 +1,10 @@
 name: Send Frost Alerts
 
 on:
-  # Run every morning at 5:00 UTC (= 6am UK winter / 6am BST summer)
+  push:
+    branches: [master]
   schedule:
-    - cron: '25 21 * * *'
-  # Allow manual trigger from the Actions tab for testing
+    - cron: '0 5 * * *'
   workflow_dispatch:
 
 jobs:
@@ -20,7 +20,7 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Send frost alerts
         env:
