@@ -1,0 +1,32 @@
+name: Send Frost Alerts
+
+on:
+  # Run every morning at 5:00 UTC (= 6am UK winter / 6am BST summer)
+  schedule:
+    - cron: '0 5 * * *'
+  # Allow manual trigger from the Actions tab for testing
+  workflow_dispatch:
+
+jobs:
+  send-alerts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Send frost alerts
+        env:
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          RESEND_API_KEY:       ${{ secrets.RESEND_API_KEY }}
+          SITE_URL:             ${{ secrets.SITE_URL }}
+          FROM_EMAIL:           ${{ secrets.FROM_EMAIL }}
+        run: node scripts/send-alerts.js

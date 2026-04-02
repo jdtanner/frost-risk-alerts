@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unsubscribe — Frost Alerts</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>❄️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --night: #f0f7fc;
+    --frost-blue: #1a7abf;
+    --text: #0d2137; --text2: #2e5070; --text3: #5a82a0;
+    --red: #cc2828; --green: #1a7a48;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--night); color: var(--text); font-family: 'DM Sans', -apple-system, sans-serif; font-size: 15px; line-height: 1.55; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem 1rem; }
+  .card { background: #fff; border-radius: var(--radius); box-shadow: 0 2px 16px rgba(0,80,160,0.10); padding: 2.5rem 2rem; max-width: 420px; width: 100%; text-align: center; }
+  .icon { font-size: 48px; margin-bottom: 1rem; display: block; }
+  h1 { font-family: 'DM Serif Display', Georgia, serif; font-size: 1.8rem; font-weight: 400; margin-bottom: 0.75rem; }
+  p { color: var(--text2); margin-bottom: 1.25rem; }
+  .btn { display: inline-block; background: var(--frost-blue); color: #fff; text-decoration: none; padding: 11px 28px; border-radius: 9px; font-weight: 600; font-size: 15px; border: none; cursor: pointer; font-family: inherit; transition: background 0.15s; }
+  .btn:hover { background: #1e8fd4; }
+  .btn.danger { background: var(--red); }
+  .btn.danger:hover { background: #a82020; }
+  .success { color: var(--green); font-weight: 600; }
+  .error   { color: var(--red); font-weight: 600; }
+  .back { margin-top: 1.25rem; display: block; font-size: 13px; color: var(--text3); text-decoration: none; }
+  .back:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<div class="card" id="card">
+  <span class="icon">❄️</span>
+  <h1>Unsubscribe</h1>
+  <p id="msg">Are you sure you want to stop receiving frost alerts for this location?</p>
+  <button class="btn danger" id="confirm-btn" onclick="doUnsubscribe()">Yes, unsubscribe me</button>
+  <a href="index.html" class="back">← Back to frost checker</a>
+</div>
+
+<!-- Replace these with your real Supabase project values -->
+<script>
+var SUPABASE_URL      = 'https://kjijdtpihxlmfuzkayhr.supabase.co';
+var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtqaWpkdHBpaHhsbWZ1emtheWhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjQyNjcsImV4cCI6MjA5MDcwMDI2N30.Idj4iWIZXzkLcDEh7B8mIg89i_hMgqfVHDnyTwb8FuY';
+
+var token = new URLSearchParams(window.location.search).get('token');
+
+if (!token) {
+  document.getElementById('msg').textContent = 'No unsubscribe token found. Please use the link from your alert email.';
+  document.getElementById('confirm-btn').style.display = 'none';
+}
+
+async function doUnsubscribe() {
+  var btn = document.getElementById('confirm-btn');
+  btn.disabled = true;
+  btn.textContent = 'Unsubscribing…';
+
+  try {
+    var res = await fetch(SUPABASE_URL + '/rest/v1/rpc/unsubscribe', {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ p_token: token })
+    });
+
+    if (!res.ok) {
+      var err = await res.text();
+      throw new Error(err);
+    }
+
+    document.getElementById('msg').innerHTML = '<span class="success">You\'ve been unsubscribed.</span><br><br>You won\'t receive any more frost alerts for this location.';
+    btn.style.display = 'none';
+  } catch (e) {
+    document.getElementById('msg').innerHTML = '<span class="error">Something went wrong.</span> Please try again or contact the site owner.';
+    btn.disabled = false;
+    btn.textContent = 'Try again';
+    console.error(e);
+  }
+}
+</script>
+
+</body>
+</html>

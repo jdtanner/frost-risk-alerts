@@ -1,0 +1,10 @@
+{
+  "name": "frost-alerts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Daily frost risk email alerts for UK gardeners",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.0.0",
+    "resend": "^4.0.0"
+  }
+}

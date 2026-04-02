@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Frost Risk Checker</title>
+<meta name="description" content="16-day air, ground and hoar frost risk for any UK location. Helpful for greenhouses, seedlings and tender plants.">
+<meta property="og:title" content="Frost Risk Checker">
+<meta property="og:description" content="16-day air, ground and hoar frost risk for any UK location. Helpful for greenhouses, seedlings and tender plants.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>❄️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --night: #f0f7fc; --night2: #e2eef8; --night3: #cfe2f4;
+    --frost-blue: #1a7abf;
+    --surface: #ffffff; --surface2: #f4f9fd; --surface3: #e6f1fa;
+    --border: rgba(0,80,160,0.10); --border2: rgba(0,80,160,0.22);
+    --text: #0d2137; --text2: #2e5070; --text3: #5a82a0;
+    --red: #cc2828; --red-bg: #fef0f0; --red-text: #8b1818;
+    --amber: #b87000; --amber-bg: #fff7e0; --amber-text: #704200;
+    --green: #1a7a48; --green-bg: #ecfaf3; --green-text: #0f5030;
+    --radius: 14px; --radius-sm: 9px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--night); color: var(--text); font-family: 'DM Sans', -apple-system, sans-serif; font-size: 15px; line-height: 1.55; min-height: 100vh; }
+
+  /* ── Hero ── */
+  .hero { background: linear-gradient(160deg, #1060a0 0%, #1a7abf 50%, #2a8fd0 100%); border-bottom: 1px solid rgba(0,80,160,0.15); padding: 2.5rem 1rem 2rem; text-align: center; position: relative; overflow: hidden; }
+  .hero::before { content:''; position: absolute; inset: 0; background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(255,255,255,0.15) 0%, transparent 70%); pointer-events: none; }
+  .hero-icon { font-size: 44px; line-height: 1; margin-bottom: 0.75rem; display: block; filter: drop-shadow(0 0 18px rgba(77,166,232,0.5)); }
+  .hero h1 { font-family: 'DM Serif Display', Georgia, serif; font-size: 2.4rem; font-weight: 400; letter-spacing: -0.5px; color: #fff; margin-bottom: 0.35rem; }
+  .hero h1 span { color: #c8e8ff; }
+  .hero-sub { font-size: 14px; color: rgba(255,255,255,0.88); max-width: 440px; margin: 0 auto; }
+
+  /* ── Search ── */
+  .search-wrap { max-width: 580px; margin: 0 auto; padding: 1.75rem 1rem 0; }
+  .search-row { display: flex; gap: 8px; margin-bottom: 0.4rem; }
+  input[type=text] { flex: 1; padding: 11px 16px; border: 1px solid var(--border2); border-radius: var(--radius-sm); background: #fff; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 15px; outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
+  input[type=text]:focus { border-color: var(--frost-blue); box-shadow: 0 0 0 3px rgba(26,122,191,0.18); }
+  input::placeholder { color: var(--text3); }
+  .check-btn { padding: 11px 22px; background: var(--frost-blue); color: #fff; border: none; border-radius: var(--radius-sm); font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background 0.15s, transform 0.1s; }
+  .check-btn:hover { background: #1e8fd4; }
+  .check-btn:active { transform: scale(0.97); }
+  .check-btn:disabled { opacity: 0.4; cursor: default; transform: none; }
+  .search-meta { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 4px; }
+  .hint { font-size: 12px; color: var(--text3); }
+  .locate-btn { background: none; border: none; color: var(--frost-blue); font-family: 'DM Sans', sans-serif; font-size: 12px; cursor: pointer; padding: 0; white-space: nowrap; }
+  .locate-btn:hover { text-decoration: underline; }
+  .locate-btn:disabled { opacity: 0.5; cursor: default; text-decoration: none; }
+  .error { font-size: 13px; color: var(--red-text); margin-top: 0.75rem; padding: 10px 14px; background: var(--red-bg); border-radius: var(--radius-sm); border: 1px solid rgba(204,40,40,0.25); display: none; }
+
+  @media (max-width: 620px) {
+    .search-row { flex-direction: column; }
+    .check-btn { width: 100%; }
+  }
+
+  /* ── Page ── */
+  .page { max-width: 860px; margin: 0 auto; padding: 1.75rem 1rem 1.5rem; }
+  .loc-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 1.25rem; }
+  .loc-label { font-size: 13px; color: var(--text2); display: flex; align-items: center; gap: 6px; }
+  .loc-label::before { content:''; display: inline-block; width: 6px; height: 6px; background: var(--frost-blue); border-radius: 50%; flex-shrink: 0; }
+  .share-btn { font-size: 12px; color: var(--frost-blue); background: var(--surface3); border: 1px solid var(--border2); border-radius: 20px; padding: 4px 12px; cursor: pointer; text-decoration: none; white-space: nowrap; transition: background 0.15s; }
+  .share-btn:hover { background: var(--night3); }
+  .share-copied { font-size: 12px; color: var(--green-text); background: var(--green-bg); border: 1px solid rgba(26,122,72,0.2); border-radius: 20px; padding: 4px 12px; display: none; }
+
+  /* ── Tonight summary banner ── */
+  .tonight-banner {
+    border-radius: var(--radius); padding: 1.25rem 1.5rem; margin-bottom: 1.5rem;
+    display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;
+    box-shadow: 0 2px 12px rgba(0,80,160,0.10);
+  }
+  .tonight-banner.risk-high { background: var(--red-bg); border: 1px solid rgba(204,40,40,0.25); border-left: 4px solid var(--red); }
+  .tonight-banner.risk-med  { background: var(--amber-bg); border: 1px solid rgba(184,112,0,0.25); border-left: 4px solid var(--amber); }
+  .tonight-banner.risk-low  { background: var(--green-bg); border: 1px solid rgba(26,122,72,0.25); border-left: 4px solid var(--green); }
+  .tonight-banner.risk-none { background: var(--surface2); border: 1px solid var(--border2); border-left: 4px solid var(--text2); }
+  
+  .tonight-icon { font-size: 32px; line-height: 1; flex-shrink: 0; }
+  .tonight-body { flex: 1; min-width: 200px; }
+  .tonight-label { font-size: 11px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text3); margin-bottom: 2px; }
+  .tonight-heading { font-family: 'DM Serif Display', serif; font-size: 1.4rem; color: var(--text); font-weight: 400; margin-bottom: 4px; }
+  .tonight-detail { font-size: 13px; color: var(--text2); }
+
+  /* ── Legend ── */
+  .legend { display: flex; gap: 18px; font-size: 13px; color: var(--text); flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ── Nav + grid ── */
+  .nav-controls-wrap { display: flex; justify-content: center; margin-bottom: 1.5rem; }
+  .nav-controls { display: inline-flex; align-items: center; gap: 15px; }
+  .nav-btn { flex-shrink: 0; width: 44px; height: 44px; background: var(--surface); border: 1px solid var(--border2); border-radius: var(--radius-sm); cursor: pointer; color: var(--frost-blue); font-size: 20px; font-weight: 600; display: flex; align-items: center; justify-content: center; transition: background 0.15s, color 0.15s, transform 0.1s; box-shadow: 0 2px 8px rgba(0,80,160,0.07); user-select: none; }
+  .nav-btn:hover { background: var(--frost-blue); color: #fff; }
+  .nav-btn:active { transform: scale(0.95); }
+  .nav-btn:disabled { opacity: 0.25; cursor: default; background: var(--surface); color: var(--text3); box-shadow: none; }
+  .nav-indicator { margin: 0; font-size: 13px; font-weight: 600; color: var(--text2); min-width: 90px; text-align: center; }
+  
+  .day-grid { flex: 1; display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 2rem; }
+  @media (max-width: 620px) { 
+    .day-grid { grid-template-columns: 1fr; } 
+  }
+
+  /* ── Day cards ── */
+  .day-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.1rem 1.2rem; position: relative; overflow: hidden; transition: transform 0.15s, box-shadow 0.15s; box-shadow: 0 2px 10px rgba(0,80,160,0.08); }
+  .day-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,80,160,0.15); }
+  .day-card::before { content:''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; border-radius: 3px 0 0 3px; }
+  .day-card.risk-high::before { background: var(--red); }
+  .day-card.risk-med::before  { background: var(--amber); }
+  .day-card.risk-low::before  { background: var(--green); }
+  .day-card.risk-none::before { background: var(--text3); }
+  
+  .day-name { font-size: 12px; color: var(--text2); font-weight: 500; text-transform: uppercase; letter-spacing: 0.6px; }
+  .day-date { font-family: 'DM Serif Display', serif; font-size: 1.3rem; color: var(--text); margin-bottom: 10px; font-weight: 400; }
+  
+  .risk-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: 20px; margin-bottom: 14px; letter-spacing: 0.4px; text-transform: uppercase; }
+  .risk-badge.high { background: var(--red-bg); color: var(--red-text); border: 1px solid rgba(204,40,40,0.20); }
+  .risk-badge.med  { background: var(--amber-bg); color: var(--amber-text); border: 1px solid rgba(184,112,0,0.20); }
+  .risk-badge.low  { background: var(--green-bg); color: var(--green-text); border: 1px solid rgba(26,122,72,0.20); }
+  .risk-badge.none { background: var(--surface3); color: var(--text2); border: 1px solid var(--border2); }
+  
+  .risk-badge::before { content:''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+  .risk-badge.high::before { background: var(--red); }
+  .risk-badge.med::before  { background: var(--amber); }
+  .risk-badge.low::before  { background: var(--green); }
+  .risk-badge.none::before { background: var(--text3); }
+  
+  .section-title { font-size: 9px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--text3); margin-bottom: 8px; margin-top: 2px; }
+  .stat-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 13.5px; margin-bottom: 6px; }
+  .stat-label { color: var(--text2); font-size: 13px; }
+  
+  .stat-val { font-weight: 600; }
+  
+  .wind-dir { font-size: 11px; font-weight: 400; color: inherit; opacity: 0.7; margin-left: 4px; }
+  .divider { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+  
+  .frost-type-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text2); margin-bottom: 6px; }
+  .frost-type-row:last-child { margin-bottom: 0; }
+  
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .dot.yes   { background: var(--red); }
+  .dot.maybe { background: var(--amber); }
+  .dot.none  { background: var(--text3); }
+  
+  .gh-delta { font-size: 12px; color: var(--text2); margin-top: 3px; }
+  .accuracy-note { font-size: 10px; color: var(--amber-text); background: var(--amber-bg); border: 1px solid rgba(184,112,0,0.20); border-radius: 4px; padding: 2px 7px; margin-bottom: 8px; display: inline-block; }
+  .today-pill { display: inline-block; font-size: 9px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; background: var(--frost-blue); color: #fff; border-radius: 20px; padding: 1px 7px; margin-left: 6px; vertical-align: middle; }
+
+  /* ── Info boxes ── */
+  .info-box { border-radius: var(--radius); padding: 1.25rem 1.5rem; font-size: 13.5px; color: var(--text); line-height: 1.75; margin-bottom: 1rem; }
+  .info-box.explainer { background: var(--surface2); border: 1px solid var(--border2); }
+  .info-box p { margin-bottom: 0.5rem; }
+  .info-box p:last-child { margin-bottom: 0; }
+  .info-box strong { font-weight: 600; color: var(--text); }
+  .info-box summary { list-style: none; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text2); display: flex; align-items: center; gap: 8px; user-select: none; }
+  .info-box summary::-webkit-details-marker { display: none; }
+  .info-box summary::before { content: '+'; font-size: 15px; font-weight: 700; color: var(--frost-blue); width: 14px; text-align: center; flex-shrink: 0; }
+  .info-box[open] summary::before { content: '\2212'; }
+  .info-box .explainer-body { margin-top: 1rem; }
+
+  /* ── Loading ── */
+  .loading { font-size: 14px; color: var(--text2); padding: 2.5rem 0; display: none; align-items: center; gap: 10px; }
+  .spinner { width: 18px; height: 18px; border: 2px solid var(--night3); border-top-color: var(--frost-blue); border-radius: 50%; animation: spin 0.7s linear infinite; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #output { display: none; }
+
+  /* ── Subscribe section ── */
+  .subscribe-section { max-width: 580px; margin: 2rem auto 0; padding: 0 1rem 2rem; }
+  .subscribe-card { background: var(--surface); border: 1px solid var(--border2); border-radius: var(--radius); padding: 1.5rem; }
+  .subscribe-card h2 { font-family: 'DM Serif Display', Georgia, serif; font-size: 1.25rem; font-weight: 400; margin-bottom: 0.35rem; }
+  .subscribe-card p { font-size: 13px; color: var(--text3); margin-bottom: 1rem; }
+  .subscribe-fields { display: flex; flex-direction: column; gap: 8px; }
+  .subscribe-fields input, .subscribe-fields select { padding: 10px 14px; border: 1px solid var(--border2); border-radius: var(--radius-sm); background: #fff; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px; outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
+  .subscribe-fields input:focus, .subscribe-fields select:focus { border-color: var(--frost-blue); box-shadow: 0 0 0 3px rgba(26,122,191,0.18); }
+  .subscribe-btn { padding: 11px 22px; background: var(--frost-blue); color: #fff; border: none; border-radius: var(--radius-sm); font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background 0.15s, transform 0.1s; }
+  .subscribe-btn:hover { background: #1e8fd4; }
+  .subscribe-btn:active { transform: scale(0.97); }
+  .subscribe-btn:disabled { opacity: 0.4; cursor: default; transform: none; }
+  .subscribe-msg { font-size: 13px; margin-top: 0.6rem; min-height: 1.2em; }
+  .subscribe-msg.ok  { color: var(--green); }
+  .subscribe-msg.err { color: var(--red); }
+
+  /* ── Footer / BMC ── */
+  .footer { border-top: 1px solid var(--border2); padding: 2.5rem 1rem; text-align: center; background: var(--surface2); }
+  .footer-inner { max-width: 860px; margin: 0 auto; }
+  .footer-text { font-size: 12px; color: var(--text3); margin-bottom: 1.5rem; }
+  .footer-text a { color: var(--text2); text-decoration: none; }
+  .footer-text a:hover { color: var(--frost-blue); }
+  .bmc-wrap { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+  .bmc-label { font-size: 13px; color: var(--text2); }
+
+  /* ── Print styles ── */
+  @media print {
+    .hero { background: none !important; color: #000 !important; border-bottom: 2px solid #000; padding: 1rem 0; }
+    .hero h1, .hero-sub, .hero h1 span { color: #000 !important; }
+    
+    /* Crucial hiding for print clarity */
+    .search-wrap, .nav-controls-wrap, .share-btn, .share-copied, .footer, .loading, .legend, .info-box { display: none !important; }
+    
+    .tonight-banner { border: 1px solid #ccc !important; background: #f9f9f9 !important; border-left: 4px solid #000 !important; box-shadow: none !important; }
+    .day-card { box-shadow: none !important; border: 1px solid #ccc !important; break-inside: avoid; }
+    .day-grid { display: grid !important; grid-template-columns: repeat(3,1fr) !important; margin-bottom: 0 !important; }
+    #output { display: block !important; }
+    .page { padding: 0.5rem !important; }
+    a { text-decoration: none !important; color: #000 !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <span class="hero-icon">❄️</span>
+  <h1>Frost <span>Risk</span> Checker</h1>
+  <p class="hero-sub">16-day air, ground &amp; hoar frost risk for any UK location — helpful for greenhouses, seedlings and tender plants</p>
+</div>
+
+<div class="search-wrap">
+  <div class="search-row">
+    <input type="text" id="loc" placeholder="e.g. NG16, NG16 4DE, Langley Mill, Matlock…" autocomplete="off" />
+    <button class="check-btn" id="btn" onclick="checkFrost()">Check frost</button>
+  </div>
+  <div class="search-meta">
+    <p class="hint">Accepts full or partial UK postcodes, or place names</p>
+    <button class="locate-btn" id="locate-btn" onclick="useMyLocation()">&#128205; Use my location</button>
+  </div>
+  <div id="error" class="error" role="alert"></div>
+  <div id="loading" class="loading" role="status"><div class="spinner" aria-hidden="true"></div><span>Fetching forecast…</span></div>
+</div>
+
+<div class="page">
+  <div id="output">
+
+    <div class="loc-row">
+      <p class="loc-label" id="loc-label"></p>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="share-btn" onclick="refresh()" id="refresh-btn">&#8635; Refresh</button>
+        <button class="share-btn" onclick="shareUrl()" id="share-btn">&#128279; Copy link</button>
+        <span class="share-copied" id="share-copied">&#10003; Copied!</span>
+        <button class="share-btn" onclick="window.print()" style="color:var(--text2)">&#128424; Print</button>
+      </div>
+    </div>
+
+    <div class="tonight-banner" id="tonight-banner">
+      <div class="tonight-icon" id="tonight-icon">🌙</div>
+      <div class="tonight-body">
+        <div class="tonight-label">Tonight's forecast</div>
+        <div class="tonight-heading" id="tonight-heading"></div>
+        <div class="tonight-detail" id="tonight-detail"></div>
+      </div>
+    </div>
+
+    <div class="nav-controls-wrap">
+      <div class="nav-controls">
+        <button class="nav-btn" id="nav-prev" onclick="shiftOffset(-1)" title="Previous day" aria-label="Previous day">&#8592;</button>
+        <p class="nav-indicator" id="nav-indicator"></p>
+        <button class="nav-btn" id="nav-next" onclick="shiftOffset(1)" title="Next day" aria-label="Next day">&#8594;</button>
+      </div>
+    </div>
+    
+    <div class="day-grid" id="day-grid"></div>
+
+    <details class="info-box explainer">
+      <summary>Understanding the forecast</summary>
+      <div class="explainer-body">
+      <div class="legend" style="margin-bottom: 0.85rem;">
+        <span class="legend-item"><span class="legend-dot" style="background:var(--red)"></span><strong>High risk</strong> — freezing air likely</span>
+        <span class="legend-item"><span class="legend-dot" style="background:var(--amber)"></span><strong>Medium risk</strong> — frost likely on clear, still night</span>
+        <span class="legend-item"><span class="legend-dot" style="background:var(--green)"></span><strong>Low risk</strong> — some frost possible</span>
+        <span class="legend-item"><span class="legend-dot" style="background:var(--text3)"></span><strong>No risk</strong> — frost unlikely</span>
+      </div>
+      
+      <hr class="divider" style="margin-bottom: 0.85rem;">
+      
+      <p><strong>Greenhouse buffer</strong> — an unheated greenhouse typically stays 2–5°C warmer than outside air on a calm, clear night. The buffer shrinks in windy conditions and on overcast nights (when outside temperatures stay higher anyway), and is slightly larger on clear nights when the outside air drops faster. The estimated minimum inside is adjusted for both wind and cloud cover. Use it to judge whether seedlings need extra protection such as fleece, bubble wrap lining, or a heated propagator.</p>
+      <p><strong>Air frost</strong> — air temperature at 1.2 m drops to 0°C or below. Directly damaging to unprotected seedlings.</p>
+      <p><strong>Ground frost</strong> — the ground surface reaches 0°C. Occurs when cold, still, clear-sky conditions allow the ground to radiate heat rapidly. Both wind and cloud cover significantly suppress ground frost risk — an overcast or breezy night at 2°C may see no ground frost at all.</p>
+      <p><strong>Hoar frost</strong> — ice crystals form on surfaces when dewpoint falls below 0°C, wind is calm, and skies are clear. It is a purely radiative phenomenon and requires clear skies to form. Calculated from temperature, humidity, wind speed, and cloud cover.</p>
+      <p><strong>Dewpoint</strong> — the temperature at which moisture in the air would condense. A sub-zero dewpoint indicates hoar frost potential.</p>
+      <p><strong>Wind direction</strong> — shown as a compass bearing. In the UK, northerly and easterly winds (N, NE, E) tend to bring colder air than southwesterlies.</p>
+      <p><strong>Cloud cover</strong> — clear skies allow the ground and air to radiate heat rapidly into space, significantly amplifying frost risk on borderline nights. Overcast conditions act as a thermal blanket and strongly suppress ground and hoar frost. Cloud cover is factored into the ground frost and hoar frost assessments above.</p>
+      <p><strong>Rain chance</strong> — a high rain probability generally indicates cloud cover, which keeps surface temperatures up and suppresses radiation frost. Nights expecting rain are far less likely to see ground or hoar frost.</p>
+      </div>
+    </details>
+
+  </div>
+</div>
+
+<div class="subscribe-section" id="subscribe-section">
+  <div class="subscribe-card">
+    <h2>❄️ Get frost alerts by email</h2>
+    <p>We'll email you on mornings when frost is forecast for your location. No sign-up required beyond your email address.</p>
+    <div class="subscribe-fields">
+      <input type="email" id="sub-email" placeholder="your@email.com" autocomplete="email">
+      <input type="text" id="sub-location" placeholder="Location (e.g. Matlock)" readonly title="Filled automatically from your current search">
+      <select id="sub-threshold" aria-label="Alert threshold">
+        <option value="high">Alert me only on HIGH frost risk nights</option>
+        <option value="medium">Alert me on MEDIUM or HIGH risk nights</option>
+        <option value="low">Alert me on any frost risk (low, medium, high)</option>
+      </select>
+      <button class="subscribe-btn" onclick="subscribeToAlerts()">Subscribe to alerts</button>
+    </div>
+    <p class="subscribe-msg" id="sub-msg"></p>
+  </div>
+</div>
+
+<div class="footer">
+  <div class="footer-inner">
+    <p class="footer-text">Weather data from <a href="https://open-meteo.com" target="_blank">Open-Meteo</a> &amp; <a href="https://postcodes.io" target="_blank">postcodes.io</a> · Free to use, no data collected</p>
+    <div class="bmc-wrap">
+      <p class="bmc-label">Find this useful? Help keep it free:</p>
+      <script type="text/javascript" src="https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js"
+        data-name="bmc-button" data-slug="johnhilltanner" data-color="#FFDD00" data-emoji="☕"
+        data-font="Cookie" data-text="Buy me a coffee" data-outline-color="#000000"
+        data-font-color="#000000" data-coffee-color="#ffffff"></script>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Supabase config — replace with your project values ──────────────────────
+var SUPABASE_URL      = 'https://kjijdtpihxlmfuzkayhr.supabase.co';
+var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtqaWpkdHBpaHhsbWZ1emtheWhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxMjQyNjcsImV4cCI6MjA5MDcwMDI2N30.Idj4iWIZXzkLcDEh7B8mIg89i_hMgqfVHDnyTwb8FuY';
+var SITE_URL          = 'https://jdtanner.github.io/frost-risk-alerts';
+// ────────────────────────────────────────────────────────────────────────────
+
+var DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var COMPASS = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+
+var forecastDays = [];
+var offset = 0;
+var currentLat   = null, currentLon = null;
+var currentLabel = '';
+var fetchedAt    = null;
+
+// Dynamically handle mobile vs desktop layout sizes
+function getCardsPerPage() {
+  return window.innerWidth <= 620 ? 1 : 3;
+}
+
+window.addEventListener('resize', function() {
+  if (forecastDays.length === 0) return;
+  var cardsPerPage = getCardsPerPage();
+  if (offset + cardsPerPage > forecastDays.length) {
+    offset = Math.max(0, forecastDays.length - cardsPerPage);
+  }
+  renderCards();
+});
+
+function dewpoint(t, rh) {
+  var a = 17.27, b = 237.7;
+  var g = (a * t / (b + t)) + Math.log(rh / 100);
+  return (b * g) / (a - g);
+}
+
+function windDir(deg) {
+  if (deg == null) return '';
+  return COMPASS[Math.round(deg / 22.5) % 16];
+}
+
+function cloudDesc(pct) {
+  if (pct < 25) return 'Clear';
+  if (pct < 60) return 'Partly cloudy';
+  return 'Overcast';
+}
+
+function assessFrost(minT, wind, rh, cloud) {
+  var dp          = dewpoint(minT, rh);
+  var clearNight  = cloud < 25;   // radiative cooling is maximised
+  var partlyClear = cloud < 60;   // some radiative cooling possible
+
+  // 1. Initial meteorological assessment
+  var airFrost    = minT <= 0;
+  var airPossible = minT <= 1.5;
+
+  // Ground frost: needs still air AND clear enough skies for radiative cooling
+  var groundFrost  = minT <= 0 || (minT <= 3 && wind < 9 && partlyClear);
+  var groundLikely = minT <= 0 || (minT <= 3 && wind < 5 && clearNight);
+
+  // Hoar frost: sub-zero dewpoint + calm wind + clear skies (purely radiative)
+  var hoarFrost    = dp < 0 && wind < 6 && clearNight;
+  var hoarPossible = dp < 0.5 && wind < 9 && partlyClear;
+
+  // 2. Score the overall risk
+  var score = 0;
+  if (airFrost)          score += 3;
+  else if (airPossible)  score += 2;
+  else if (groundLikely) score += 1;
+  if (groundLikely)      score += 1;
+  if (hoarFrost)         score += 1;
+
+  var level = 'none';
+  if (score >= 4) level = 'high';
+  else if (score >= 2) level = 'med';
+  // If ANY frost is even possible, bump the overall level to at least 'low'
+  else if (score >= 1 || groundFrost || hoarPossible) level = 'low';
+
+  // 3. Absolute override for warm temperatures
+  if (minT > 3) level = 'none';
+
+  // 4. UI fail-safe: prevent text contradictions
+  if (level === 'none') {
+    airFrost = false; airPossible = false;
+    groundFrost = false; groundLikely = false;
+    hoarFrost = false; hoarPossible = false;
+  }
+
+  return {
+    level: level,
+    airFrost: airFrost, airPossible: airPossible,
+    groundFrost: groundFrost, groundLikely: groundLikely,
+    hoarFrost: hoarFrost, hoarPossible: hoarPossible, dp: dp
+  };
+}
+
+function fmt(t) { return (Math.round(t * 10) / 10).toFixed(1) + '\u00b0C'; }
+
+function renderTonightBanner() {
+  if (!forecastDays.length) return;
+  var day   = forecastDays[0];
+  var frost = assessFrost(day.minT, day.wind, day.rh, day.cloud);
+  var ghBase   = day.wind > 12 ? 1.5 : day.wind > 6 ? 2.5 : 3.5;
+  var cloudAdj = day.cloud < 25 ? 0.5 : day.cloud > 60 ? -0.5 : 0;
+  var ghBuffer = Math.max(0.5, ghBase + cloudAdj);
+  var ghMin    = day.minT + ghBuffer;
+
+  var banner = document.getElementById('tonight-banner');
+  banner.className = 'tonight-banner risk-' + frost.level;
+
+  var icons = { high: '🥶', med: '🌡️', low: '🌿', none: '✅' };
+  document.getElementById('tonight-icon').textContent = icons[frost.level];
+
+  var headings = { 
+    high: 'High frost risk tonight', 
+    med: 'Moderate frost risk tonight', 
+    low: 'Low frost risk tonight', 
+    none: 'No frost expected tonight' 
+  };
+  document.getElementById('tonight-heading').textContent = headings[frost.level];
+
+  var parts = ['Min ' + fmt(day.minT), 'Wind ' + Math.round(day.wind) + ' mph ' + windDir(day.windDir), 'Cloud ' + Math.round(day.cloud) + '% (' + cloudDesc(day.cloud) + ')', 'Greenhouse est. ' + fmt(ghMin)];
+  document.getElementById('tonight-detail').textContent = parts.join(' · ');
+}
+
+function renderCards() {
+  var grid  = document.getElementById('day-grid');
+  var total = forecastDays.length;
+  var cardsPerPage = getCardsPerPage();
+  var visible = forecastDays.slice(offset, offset + cardsPerPage);
+  var html = '';
+
+  visible.forEach(function(day, idx) {
+    var dayIndex    = offset + idx;
+    var isToday     = (dayIndex === 0);
+    var isLongRange = (dayIndex >= 7);
+    var dt     = day.dt;
+    var minT   = day.minT;
+    var maxT   = day.maxT;
+    var wind   = day.wind;
+    var rh     = day.rh;
+    var cloud  = day.cloud;
+    var precip = day.precip;
+    var wdir   = day.windDir;
+    var frost  = assessFrost(minT, wind, rh, cloud);
+
+    var labels = { high: 'HIGH FROST RISK', med: 'MEDIUM FROST RISK', low: 'LOW FROST RISK', none: 'NO FROST RISK' };
+
+    // Dot allocation aligns cleanly with risk representation
+    var airDot = frost.airFrost    ? 'yes' : frost.airPossible   ? 'maybe' : 'none';
+    var airTxt = frost.airFrost    ? 'Air frost likely'          : frost.airPossible   ? 'Air frost possible'    : 'Air frost unlikely';
+
+    var gDot   = frost.groundLikely? 'yes' : frost.groundFrost   ? 'maybe' : 'none';
+    var gTxt   = frost.groundLikely? 'Ground frost likely'       : frost.groundFrost   ? 'Ground frost possible' : 'Ground frost unlikely';
+
+    var hDot   = frost.hoarFrost   ? 'yes' : frost.hoarPossible  ? 'maybe' : 'none';
+    var hTxt   = frost.hoarFrost   ? 'Hoar frost likely'         : frost.hoarPossible  ? 'Hoar frost possible'   : 'Hoar frost unlikely';
+
+    var ghBase   = wind > 12 ? 1.5 : wind > 6 ? 2.5 : 3.5;
+    var cloudAdj = cloud < 25 ? 0.5 : cloud > 60 ? -0.5 : 0;
+    var ghBuffer = Math.max(0.5, ghBase + cloudAdj);
+    var ghMin    = minT + ghBuffer;
+    var windTxt  = Math.round(wind) + ' mph';
+    var dirTxt   = wdir != null ? ' <span class="wind-dir">(' + windDir(wdir) + ')</span>' : '';
+
+    html +=
+      '<div class="day-card risk-' + frost.level + '">' +
+        '<div class="day-name">' + DAYS[dt.getDay()] + (isToday ? ' <span class="today-pill">Today</span>' : '') + '</div>' +
+        '<div class="day-date">' + dt.getDate() + ' ' + MONTHS[dt.getMonth()] + '</div>' +
+        (isLongRange ? '<div class="accuracy-note">Indicative — beyond 7-day reliable range</div>' : '') +
+        '<span class="risk-badge ' + frost.level + '">' + labels[frost.level] + '</span>' +
+        '<div class="section-title">Outside</div>' +
+        '<div class="stat-row"><span class="stat-label">Min temp</span><span class="stat-val">' + fmt(minT) + '</span></div>' +
+        '<div class="stat-row"><span class="stat-label">Max temp</span><span class="stat-val">' + fmt(maxT) + '</span></div>' +
+        '<div class="stat-row"><span class="stat-label">Dewpoint</span><span class="stat-val">' + fmt(frost.dp) + '</span></div>' +
+        '<div class="stat-row"><span class="stat-label">Wind (max)</span><span class="stat-val">' + windTxt + dirTxt + '</span></div>' +
+        '<div class="stat-row"><span class="stat-label">Cloud cover</span><span class="stat-val">' + Math.round(cloud) + '% (' + cloudDesc(cloud) + ')</span></div>' +
+        '<div class="stat-row"><span class="stat-label">Humidity</span><span class="stat-val">' + Math.round(rh) + '%</span></div>' +
+        '<div class="stat-row"><span class="stat-label">Rain chance</span><span class="stat-val">' + Math.round(precip) + '%</span></div>' +
+        '<hr class="divider">' +
+        '<div class="section-title">Unheated greenhouse</div>' +
+        '<div class="stat-row"><span class="stat-label">Est. min inside</span><span class="stat-val">' + fmt(ghMin) + '</span></div>' +
+        '<div class="gh-delta">+' + ghBuffer.toFixed(1) + '\u00b0C buffer (wind and cloud adjusted)</div>' +
+        '<hr class="divider">' +
+        '<div class="frost-type-row"><span class="dot ' + airDot + '"></span>' + airTxt + '</div>' +
+        '<div class="frost-type-row"><span class="dot ' + gDot   + '"></span>' + gTxt   + '</div>' +
+        '<div class="frost-type-row"><span class="dot ' + hDot   + '"></span>' + hTxt   + '</div>' +
+      '</div>';
+  });
+
+  grid.innerHTML = html;
+
+  document.getElementById('nav-prev').disabled = offset === 0;
+  document.getElementById('nav-next').disabled = offset + cardsPerPage >= total;
+  
+  if (cardsPerPage === 1) {
+    document.getElementById('nav-indicator').textContent = 'Day ' + (offset + 1) + ' of ' + total;
+  } else {
+    document.getElementById('nav-indicator').textContent = 'Days ' + (offset + 1) + '\u2013' + Math.min(offset + cardsPerPage, total) + ' of ' + total;
+  }
+}
+
+function shiftOffset(delta) {
+  var cardsPerPage = getCardsPerPage();
+  var maxOffset = forecastDays.length - cardsPerPage;
+  var n = offset + delta;
+  if (n < 0) n = 0;
+  if (n > maxOffset) n = maxOffset;
+  offset = n;
+  renderCards();
+}
+
+function shareUrl() {
+  var name = document.getElementById('loc').value.trim();
+  var url  = window.location.origin + window.location.pathname + '?location=' + encodeURIComponent(name);
+  if (currentLat !== null && currentLon !== null) {
+    url += '&lat=' + currentLat.toFixed(4) + '&lon=' + currentLon.toFixed(4);
+  }
+  navigator.clipboard.writeText(url).then(function() {
+    document.getElementById('share-btn').style.display = 'none';
+    var copied = document.getElementById('share-copied');
+    copied.style.display = 'inline-block';
+    setTimeout(function() {
+      copied.style.display = 'none';
+      document.getElementById('share-btn').style.display = 'inline-block';
+    }, 2500);
+  }).catch(function() {
+    prompt('Copy this link to share:', url);
+  });
+}
+
+function useMyLocation() {
+  if (!navigator.geolocation) {
+    var errEl = document.getElementById('error');
+    errEl.textContent = 'Geolocation is not supported by your browser.';
+    errEl.style.display = 'block';
+    return;
+  }
+  var btn = document.getElementById('locate-btn');
+  btn.disabled = true;
+  btn.innerHTML = 'Locating\u2026';
+  navigator.geolocation.getCurrentPosition(
+    function(pos) {
+      var lat = pos.coords.latitude;
+      var lon = pos.coords.longitude;
+      currentLat = lat;
+      currentLon = lon;
+      document.getElementById('loc').value          = 'My location';
+      document.getElementById('error').style.display  = 'none';
+      document.getElementById('output').style.display  = 'none';
+      document.getElementById('loading').style.display = 'flex';
+      var label = 'Your location \u00b7 ' + lat.toFixed(4) + '\u00b0N, ' + Math.abs(lon).toFixed(4) + '\u00b0' + (lon < 0 ? 'W' : 'E');
+      fetchAndShow(lat, lon, label).then(function() {
+        btn.disabled = false;
+        btn.innerHTML = '&#128205; Use my location';
+      }, function(e) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('error').textContent    = e.message;
+        document.getElementById('error').style.display  = 'block';
+        btn.disabled = false;
+        btn.innerHTML = '&#128205; Use my location';
+      });
+    },
+    function() {
+      btn.disabled = false;
+      btn.innerHTML = '&#128205; Use my location';
+      var errEl = document.getElementById('error');
+      errEl.textContent = 'Location access was denied. Please type your location instead.';
+      errEl.style.display = 'block';
+    }
+  );
+}
+
+function looksLikePostcode(s) {
+  return /^[A-Z]{1,2}\d[\dA-Z]?(\s*\d[A-Z]{2})?$/i.test(s.trim());
+}
+
+async function resolveLocation(query) {
+  var q = query.trim();
+  if (looksLikePostcode(q)) {
+    var clean = q.replace(/\s+/g,'').toUpperCase();
+    if (/^[A-Z]{1,2}\d[\dA-Z]?\d[A-Z]{2}$/.test(clean)) {
+      var r = await fetch('https://api.postcodes.io/postcodes/' + encodeURIComponent(clean));
+      var d = await r.json();
+      if (d.status === 200)
+        return { lat: d.result.latitude, lon: d.result.longitude, name: d.result.postcode, area: d.result.admin_district || d.result.parliamentary_constituency || '' };
+      throw new Error('Postcode ' + q + ' not found. Please check it is a valid UK postcode.');
+    }
+    var r2 = await fetch('https://api.postcodes.io/postcodes?q=' + encodeURIComponent(clean) + '&limit=1');
+    var d2 = await r2.json();
+    if (d2.status === 200 && d2.result && d2.result.length > 0) {
+      var res = d2.result[0];
+      return { lat: res.latitude, lon: res.longitude, name: res.postcode, area: res.admin_district || res.parliamentary_constituency || '' };
+    }
+  }
+  var r3 = await fetch('https://geocoding-api.open-meteo.com/v1/search?name=' + encodeURIComponent(q) + '&count=10&language=en&format=json');
+  var d3 = await r3.json();
+  if (d3.results && d3.results.length > 0) {
+    var gb = d3.results.find(function(x) { return x.country_code === 'GB'; }) || d3.results[0];
+    return { lat: gb.latitude, lon: gb.longitude, name: gb.name, area: gb.admin1 || '' };
+  }
+  throw new Error('Could not find "' + q + '". Try a place name (e.g. Matlock) or a UK postcode (e.g. NG16 4DE).');
+}
+
+async function fetchAndShow(lat, lon, labelText) {
+  var wxRes = await fetch(
+    'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon +
+    '&daily=temperature_2m_min,temperature_2m_max,windspeed_10m_max,winddirection_10m_dominant,precipitation_probability_max,relative_humidity_2m_mean,cloud_cover_mean' +
+    '&forecast_days=16&timezone=Europe%2FLondon&wind_speed_unit=mph'
+  );
+  var wx = await wxRes.json();
+  if (!wx.daily) throw new Error('Forecast data unavailable. Please try again.');
+  var d = wx.daily;
+  forecastDays = [];
+  offset = 0;
+  for (var i = 0; i < d.time.length; i++) {
+    forecastDays.push({
+      dt:      new Date(d.time[i] + 'T00:00:00'),
+      minT:    d.temperature_2m_min[i],
+      maxT:    d.temperature_2m_max[i],
+      wind:    d.windspeed_10m_max[i],
+      windDir: d.winddirection_10m_dominant ? d.winddirection_10m_dominant[i] : null,
+      rh:      d.relative_humidity_2m_mean[i] != null ? d.relative_humidity_2m_mean[i] : 80,
+      cloud:   d.cloud_cover_mean[i] != null ? d.cloud_cover_mean[i] : 50,
+      precip:  d.precipitation_probability_max[i] != null ? d.precipitation_probability_max[i] : 0
+    });
+  }
+  currentLabel = labelText;
+  updateSubscribeLocation(labelText);
+  fetchedAt = new Date();
+  var timeStr = fetchedAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  document.getElementById('loc-label').textContent = labelText + ' \u00b7 Fetched ' + timeStr;
+  renderTonightBanner();
+  renderCards();
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('output').style.display  = 'block';
+}
+
+async function checkFrost() {
+  var q = document.getElementById('loc').value.trim();
+  if (!q) return;
+  document.getElementById('loc').blur();
+  var btn    = document.getElementById('btn');
+  var errEl  = document.getElementById('error');
+  var loadEl = document.getElementById('loading');
+  var outEl  = document.getElementById('output');
+  btn.disabled = true;
+  errEl.style.display  = 'none';
+  outEl.style.display  = 'none';
+  loadEl.style.display = 'flex';
+  try {
+    if (q === 'My location' && currentLat !== null && currentLon !== null) {
+      await fetchAndShow(currentLat, currentLon, currentLabel);
+    } else {
+      var loc = await resolveLocation(q);
+      currentLat = loc.lat;
+      currentLon = loc.lon;
+      try { localStorage.setItem('frost_last_location', q); } catch(e) {}
+      var label = [loc.name, loc.area].filter(Boolean).join(', ') +
+        ' \u00b7 ' + loc.lat.toFixed(4) + '\u00b0N, ' + Math.abs(loc.lon).toFixed(4) + '\u00b0' + (loc.lon < 0 ? 'W' : 'E');
+      await fetchAndShow(loc.lat, loc.lon, label);
+    }
+  } catch(e) {
+    loadEl.style.display = 'none';
+    errEl.textContent    = e.message;
+    errEl.style.display  = 'block';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function refresh() {
+  if (currentLat === null) return;
+  var btn    = document.getElementById('refresh-btn');
+  var loadEl = document.getElementById('loading');
+  var outEl  = document.getElementById('output');
+  btn.disabled = true;
+  outEl.style.display  = 'none';
+  loadEl.style.display = 'flex';
+  fetchAndShow(currentLat, currentLon, currentLabel).then(function() {
+    btn.disabled = false;
+  }, function(e) {
+    loadEl.style.display = 'none';
+    document.getElementById('error').textContent   = e.message;
+    document.getElementById('error').style.display = 'block';
+    btn.disabled = false;
+  });
+}
+
+document.getElementById('loc').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') checkFrost();
+});
+
+// On load: check URL params first, then localStorage
+(function() {
+  var params   = new URLSearchParams(window.location.search);
+  var locParam = params.get('location');
+  var latParam = parseFloat(params.get('lat'));
+  var lonParam = parseFloat(params.get('lon'));
+
+  if (locParam && !isNaN(latParam) && !isNaN(lonParam)) {
+    // Shared link with coordinates — skip geocoding entirely
+    document.getElementById('loc').value = locParam;
+    currentLat = latParam;
+    currentLon = lonParam;
+    document.getElementById('loading').style.display = 'flex';
+    var label = locParam + ' \u00b7 ' + latParam.toFixed(4) + '\u00b0N, ' + Math.abs(lonParam).toFixed(4) + '\u00b0' + (lonParam < 0 ? 'W' : 'E');
+    fetchAndShow(latParam, lonParam, label).catch(function(e) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('error').textContent    = e.message;
+      document.getElementById('error').style.display  = 'block';
+    });
+  } else if (locParam) {
+    document.getElementById('loc').value = locParam;
+    checkFrost();
+  } else {
+    try {
+      var saved = localStorage.getItem('frost_last_location');
+      if (saved) {
+        document.getElementById('loc').value = saved;
+        checkFrost();
+      }
+    } catch(e) {}
+  }
+})();
+
+// ── Subscribe to alerts ───────────────────────────────────────────────────────
+
+// Pre-fill location field whenever a forecast is loaded
+function updateSubscribeLocation(label) {
+  var field = document.getElementById('sub-location');
+  if (field && label && label !== 'My location') field.value = label;
+}
+
+async function subscribeToAlerts() {
+  var email     = (document.getElementById('sub-email').value || '').trim();
+  var location  = (document.getElementById('sub-location').value || '').trim();
+  var threshold = document.getElementById('sub-threshold').value;
+  var msgEl     = document.getElementById('sub-msg');
+  var btn       = document.querySelector('.subscribe-btn');
+
+  msgEl.className = 'subscribe-msg';
+  msgEl.textContent = '';
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    msgEl.className = 'subscribe-msg err';
+    msgEl.textContent = 'Please enter a valid email address.';
+    return;
+  }
+  if (!location || currentLat === null || currentLon === null) {
+    msgEl.className = 'subscribe-msg err';
+    msgEl.textContent = 'Please search for a location first.';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Subscribing…';
+
+  try {
+    var res = await fetch(SUPABASE_URL + '/rest/v1/subscribers', {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json',
+        'Prefer': 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify({
+        email:         email,
+        location_name: location,
+        lat:           currentLat,
+        lon:           currentLon,
+        threshold:     threshold
+      })
+    });
+
+    if (!res.ok) {
+      var err = await res.text();
+      throw new Error(err);
+    }
+
+    msgEl.className = 'subscribe-msg ok';
+    msgEl.textContent = '✓ Subscribed! You\'ll get an alert on mornings when frost is forecast for ' + location + '.';
+    document.getElementById('sub-email').value = '';
+    btn.textContent = 'Subscribe to alerts';
+    btn.disabled = false;
+  } catch (e) {
+    msgEl.className = 'subscribe-msg err';
+    msgEl.textContent = 'Something went wrong. Please try again.';
+    console.error(e);
+    btn.textContent = 'Subscribe to alerts';
+    btn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>
