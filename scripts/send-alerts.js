@@ -1,12 +1,14 @@
 #!/usr/bin/env node
+
 // Frost Alerts — nightly send script
 // Runs via GitHub Actions every morning at ~6am UK time (cron: 0 5 * * *)
 //
 // Required environment variables (set as GitHub Actions secrets):
-//   SUPABASE_URL       — e.g. https://xxxxxxxxxxxx.supabase.co
+//   SUPABASE_URL        — e.g. https://xxxxxxxxxxxx.supabase.co
 //   SUPABASE_SERVICE_KEY — service_role key (not anon key — needs to bypass RLS to read subscribers)
-//   RESEND_API_KEY     — your Resend API key
-//   SITE_URL           — public URL of your site, e.g. https://yourusername.github.io/frost
+//   RESEND_API_KEY      — your Resend API key
+//   SITE_URL            — public URL of your site, e.g. https://yourusername.github.io/frost
+//   FROM_EMAIL          — sender address, e.g. Frost Alerts <alerts@yourdomain.com>
 
 'use strict';
 
@@ -25,7 +27,7 @@ function dewpoint(t, rh) {
 }
 
 function assessFrost(minT, wind, rh, cloud) {
-  var dp          = dewpoint(minT, rh);
+  var dp = dewpoint(minT, rh);
   var clearNight  = cloud < 25;
   var partlyClear = cloud < 60;
 
@@ -33,21 +35,20 @@ function assessFrost(minT, wind, rh, cloud) {
   var airPossible = minT <= 1.5;
   var groundFrost  = minT <= 0 || (minT <= 3 && wind < 9 && partlyClear);
   var groundLikely = minT <= 0 || (minT <= 3 && wind < 5 && clearNight);
-  var hoarFrost    = dp < 0 && wind < 6 && clearNight;
+  var hoarFrost    = dp < 0   && wind < 6 && clearNight;
   var hoarPossible = dp < 0.5 && wind < 9 && partlyClear;
 
   var score = 0;
   if (airFrost)          score += 3;
   else if (airPossible)  score += 2;
   else if (groundLikely) score += 1;
-  if (groundLikely)      score += 1;
-  if (hoarFrost)         score += 1;
+  if (groundLikely) score += 1;
+  if (hoarFrost)    score += 1;
 
   var level = 'none';
-  if (score >= 4)                                      level = 'high';
-  else if (score >= 2)                                 level = 'med';
-  else if (score >= 1 || groundFrost || hoarPossible)  level = 'low';
-
+  if (score >= 4)                                   level = 'high';
+  else if (score >= 2)                              level = 'med';
+  else if (score >= 1 || groundFrost || hoarPossible) level = 'low';
   if (minT > 3) level = 'none';
 
   if (level === 'none') {
@@ -117,9 +118,27 @@ async function getWeather(lat, lon) {
     'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon +
     '&daily=temperature_2m_min,windspeed_10m_max,relative_humidity_2m_mean,cloud_cover_mean' +
     '&wind_speed_unit=mph&forecast_days=3&timezone=Europe%2FLondon';
+
   const res = await fetch(url);
-  if (!res.ok) throw new Error('Weather API error ' + res.status);
-  const data = await res.json();
+
+  // Capture status before attempting to parse — a 502 returns an empty body
+  // which causes "Unexpected end of JSON input" if we blindly call res.json()
+  if (!res.ok) {
+    throw new Error('Weather API returned HTTP ' + res.status + ' for ' + lat + ',' + lon);
+  }
+
+  const text = await res.text();
+  if (!text || text.trim() === '') {
+    throw new Error('Weather API returned empty response for ' + lat + ',' + lon);
+  }
+
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (e) {
+    throw new Error('Weather API returned unparseable response for ' + lat + ',' + lon + ': ' + text.slice(0, 100));
+  }
+
   const d = data.daily;
   return d.time.map(function(date, i) {
     return {
@@ -135,22 +154,22 @@ async function getWeather(lat, lon) {
 // ── Email rendering ───────────────────────────────────────────────────────────
 
 function buildEmail(subscriber, days) {
-  const tonight   = days[0];
-  const tomorrow  = days[1];
-  const frost     = assessFrost(tonight.minT, tonight.wind, tonight.rh, tonight.cloud);
-  const buf       = ghBuffer(tonight.wind, tonight.cloud);
-  const ghMin     = tonight.minT + buf;
+  const tonight  = days[0];
+  const tomorrow = days[1];
+  const frost    = assessFrost(tonight.minT, tonight.wind, tonight.rh, tonight.cloud);
+  const buf      = ghBuffer(tonight.wind, tonight.cloud);
+  const ghMin    = tonight.minT + buf;
   const frostTmrw = assessFrost(tomorrow.minT, tomorrow.wind, tomorrow.rh, tomorrow.cloud);
 
   const riskColour = levelColour(frost.level);
   const riskLabel  = levelLabel(frost.level);
 
   const indicators = [];
-  if (frost.airFrost)    indicators.push('Air frost likely');
+  if (frost.airFrost)       indicators.push('Air frost likely');
   else if (frost.airPossible) indicators.push('Air frost possible');
-  if (frost.groundLikely)  indicators.push('Ground frost likely');
+  if (frost.groundLikely)   indicators.push('Ground frost likely');
   else if (frost.groundFrost) indicators.push('Ground frost possible');
-  if (frost.hoarFrost)   indicators.push('Hoar frost likely');
+  if (frost.hoarFrost)      indicators.push('Hoar frost likely');
   else if (frost.hoarPossible) indicators.push('Hoar frost possible');
 
   const tomorrowNote = frostTmrw.level !== 'none'
@@ -171,94 +190,64 @@ function buildEmail(subscriber, days) {
 </head>
 <body style="margin:0;padding:0;background:#f0f7fc;font-family:'Segoe UI',Arial,sans-serif;font-size:15px;color:#0d2137;">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f7fc;padding:32px 16px;">
-  <tr><td align="center">
-    <table width="100%" style="max-width:520px;background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,80,160,0.10);">
-
-      <!-- Header -->
+<tr><td align="center">
+<table width="100%" style="max-width:520px;background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,80,160,0.10);">
+<!-- Header -->
+<tr>
+  <td style="background:linear-gradient(160deg,#1060a0,#1a7abf);padding:28px 32px;text-align:center;">
+    <div style="font-size:36px;margin-bottom:8px;">❄️</div>
+    <div style="font-family:Georgia,serif;font-size:22px;color:#fff;font-weight:400;">Frost Alert</div>
+    <div style="font-size:13px;color:rgba(255,255,255,0.85);margin-top:4px;">${subscriber.location_name}</div>
+  </td>
+</tr>
+<!-- Risk banner -->
+<tr>
+  <td style="padding:0;">
+    <div style="background:${riskColour};color:#fff;text-align:center;padding:14px 24px;font-size:18px;font-weight:700;letter-spacing:0.5px;">
+      ${riskLabel} FROST RISK TONIGHT
+    </div>
+  </td>
+</tr>
+<!-- Details -->
+<tr>
+  <td style="padding:24px 32px;">
+    <table width="100%" cellpadding="0" cellspacing="0">
+      <tr><td style="padding-bottom:12px;"><span style="font-size:13px;color:#5a82a0;text-transform:uppercase;letter-spacing:0.5px;">Conditions</span></td></tr>
       <tr>
-        <td style="background:linear-gradient(160deg,#1060a0,#1a7abf);padding:28px 32px;text-align:center;">
-          <div style="font-size:36px;margin-bottom:8px;">❄️</div>
-          <div style="font-family:Georgia,serif;font-size:22px;color:#fff;font-weight:400;">Frost Alert</div>
-          <div style="font-size:13px;color:rgba(255,255,255,0.85);margin-top:4px;">${subscriber.location_name}</div>
-        </td>
-      </tr>
-
-      <!-- Risk banner -->
-      <tr>
-        <td style="padding:0;">
-          <div style="background:${riskColour};color:#fff;text-align:center;padding:14px 24px;font-size:18px;font-weight:700;letter-spacing:0.5px;">
-            ${riskLabel} FROST RISK TONIGHT
-          </div>
-        </td>
-      </tr>
-
-      <!-- Details -->
-      <tr>
-        <td style="padding:24px 32px;">
-          <table width="100%" cellpadding="0" cellspacing="0">
-            <tr>
-              <td style="padding-bottom:12px;">
-                <span style="font-size:13px;color:#5a82a0;text-transform:uppercase;letter-spacing:0.5px;">Conditions</span>
-              </td>
-            </tr>
-            <tr>
-              <td>
-                <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f9fd;border-radius:10px;padding:16px;">
-                  <tr>
-                    <td style="padding:4px 0;"><span style="color:#5a82a0;">Min temperature</span></td>
-                    <td style="text-align:right;font-weight:600;">${fmt(tonight.minT)}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding:4px 0;"><span style="color:#5a82a0;">Wind speed</span></td>
-                    <td style="text-align:right;font-weight:600;">${Math.round(tonight.wind)} mph</td>
-                  </tr>
-                  <tr>
-                    <td style="padding:4px 0;"><span style="color:#5a82a0;">Humidity</span></td>
-                    <td style="text-align:right;font-weight:600;">${Math.round(tonight.rh)}%</td>
-                  </tr>
-                  <tr>
-                    <td style="padding:4px 0;"><span style="color:#5a82a0;">Cloud cover</span></td>
-                    <td style="text-align:right;font-weight:600;">${Math.round(tonight.cloud)}%</td>
-                  </tr>
-                  <tr>
-                    <td style="padding:4px 0;"><span style="color:#5a82a0;">Dewpoint</span></td>
-                    <td style="text-align:right;font-weight:600;">${fmt(frost.dp)}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding:4px 0;"><span style="color:#5a82a0;">Greenhouse min</span></td>
-                    <td style="text-align:right;font-weight:600;">${fmt(ghMin)} <span style="color:#5a82a0;font-weight:400;font-size:13px;">(+${buf.toFixed(1)}°C buffer)</span></td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
+        <td>
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f9fd;border-radius:10px;padding:16px;">
+            <tr><td style="padding:4px 0;"><span style="color:#5a82a0;">Min temperature</span></td><td style="text-align:right;font-weight:600;">${fmt(tonight.minT)}</td></tr>
+            <tr><td style="padding:4px 0;"><span style="color:#5a82a0;">Wind speed</span></td><td style="text-align:right;font-weight:600;">${Math.round(tonight.wind)} mph</td></tr>
+            <tr><td style="padding:4px 0;"><span style="color:#5a82a0;">Humidity</span></td><td style="text-align:right;font-weight:600;">${Math.round(tonight.rh)}%</td></tr>
+            <tr><td style="padding:4px 0;"><span style="color:#5a82a0;">Cloud cover</span></td><td style="text-align:right;font-weight:600;">${Math.round(tonight.cloud)}%</td></tr>
+            <tr><td style="padding:4px 0;"><span style="color:#5a82a0;">Dewpoint</span></td><td style="text-align:right;font-weight:600;">${fmt(frost.dp)}</td></tr>
+            <tr><td style="padding:4px 0;"><span style="color:#5a82a0;">Greenhouse min</span></td><td style="text-align:right;font-weight:600;">${fmt(ghMin)} <span style="color:#5a82a0;font-weight:400;font-size:13px;">(+${buf.toFixed(1)}°C buffer)</span></td></tr>
           </table>
-
-          ${indicators.length ? `
-          <div style="margin-top:16px;">
-            ${indicators.map(function(i) {
-              return '<div style="display:inline-block;background:#e2eef8;color:#1a7abf;border-radius:20px;padding:4px 12px;font-size:13px;font-weight:600;margin:3px 4px 3px 0;">' + i + '</div>';
-            }).join('')}
-          </div>` : ''}
-
-          ${tomorrowNote}
-
-          <div style="margin-top:24px;text-align:center;">
-            <a href="${siteUrl}" style="display:inline-block;background:#1a7abf;color:#fff;text-decoration:none;padding:12px 28px;border-radius:9px;font-weight:600;font-size:15px;">View full 16-day forecast →</a>
-          </div>
         </td>
       </tr>
-
-      <!-- Footer -->
-      <tr>
-        <td style="padding:16px 32px 24px;border-top:1px solid #e2eef8;text-align:center;font-size:12px;color:#5a82a0;">
-          You're subscribed as <strong>${subscriber.email}</strong> for ${subscriber.location_name}
-          (${levelLabel(subscriber.threshold).toLowerCase()} risk threshold).<br>
-          <a href="${unsubUrl}" style="color:#1a7abf;">Unsubscribe from this location</a>
-        </td>
-      </tr>
-
     </table>
-  </td></tr>
+    ${indicators.length ? `
+    <div style="margin-top:16px;">
+      ${indicators.map(function(i) {
+        return '<div style="display:inline-block;background:#e2eef8;color:#1a7abf;border-radius:20px;padding:4px 12px;font-size:13px;font-weight:600;margin:3px 4px 3px 0;">' + i + '</div>';
+      }).join('')}
+    </div>` : ''}
+    ${tomorrowNote}
+    <div style="margin-top:24px;text-align:center;">
+      <a href="${siteUrl}" style="display:inline-block;background:#1a7abf;color:#fff;text-decoration:none;padding:12px 28px;border-radius:9px;font-weight:600;font-size:15px;">View full 16-day forecast →</a>
+    </div>
+  </td>
+</tr>
+<!-- Footer -->
+<tr>
+  <td style="padding:16px 32px 24px;border-top:1px solid #e2eef8;text-align:center;font-size:12px;color:#5a82a0;">
+    You're subscribed as <strong>${subscriber.email}</strong> for ${subscriber.location_name}
+    (${levelLabel(subscriber.threshold).toLowerCase()} risk threshold).<br>
+    <a href="${unsubUrl}" style="color:#1a7abf;">Unsubscribe from this location</a>
+  </td>
+</tr>
+</table>
+</td></tr>
 </table>
 </body>
 </html>`;
@@ -290,6 +279,7 @@ async function sendEmail(to, subject, html, text) {
     },
     body: JSON.stringify({ from: FROM_EMAIL, to, subject, html, text })
   });
+
   if (!res.ok) {
     const err = await res.text();
     throw new Error('Resend error ' + res.status + ': ' + err);
@@ -313,6 +303,7 @@ async function main() {
 
   console.log('Frost Alerts — ' + today);
   console.log('Fetching subscribers...');
+
   const subscribers = await getSubscribers();
   console.log(subscribers.length + ' subscriber(s) found.');
 
@@ -324,16 +315,20 @@ async function main() {
     byLocation[key].subs.push(sub);
   }
 
-  let sent = 0, skipped = 0, errors = 0;
+  let sent = 0, skipped = 0, weatherErrors = 0, sendErrors = 0;
 
   for (const key of Object.keys(byLocation)) {
     const { lat, lon, subs } = byLocation[key];
+
     let days;
     try {
       days = await getWeather(lat, lon);
     } catch (err) {
-      console.error('Weather fetch failed for ' + key + ':', err.message);
-      errors += subs.length;
+      // Weather fetch failed — log clearly and skip this location group.
+      // This is not a send error; don't count it as one.
+      console.error(' WEATHER ERROR for ' + key + ': ' + err.message);
+      console.error(' Skipping ' + subs.length + ' subscriber(s) at this location.');
+      weatherErrors += subs.length;
       continue;
     }
 
@@ -341,15 +336,16 @@ async function main() {
     const frost   = assessFrost(tonight.minT, tonight.wind, tonight.rh, tonight.cloud);
 
     for (const sub of subs) {
+
       // Skip if already alerted today
       if (sub.last_alerted_date === today) {
-        console.log('  SKIP (already sent today): ' + sub.email + ' @ ' + sub.location_name);
+        console.log(' SKIP (already sent today): ' + sub.email + ' @ ' + sub.location_name);
         skipped++;
         continue;
       }
 
       if (!shouldAlert(sub.threshold, frost.level)) {
-        console.log('  SKIP (below threshold "' + sub.threshold + '", risk is "' + frost.level + '"): ' + sub.email);
+        console.log(' SKIP (below threshold "' + sub.threshold + '", risk is "' + frost.level + '"): ' + sub.email);
         skipped++;
         continue;
       }
@@ -360,17 +356,23 @@ async function main() {
       try {
         await sendEmail(sub.email, subject, html, text);
         await setLastAlertedDate(sub.id, today);
-        console.log('  SENT: ' + sub.email + ' @ ' + sub.location_name + ' [' + frost.level + ']');
+        console.log(' SENT: ' + sub.email + ' @ ' + sub.location_name + ' [' + frost.level + ']');
         sent++;
       } catch (err) {
-        console.error('  ERROR sending to ' + sub.email + ':', err.message);
-        errors++;
+        console.error(' SEND ERROR for ' + sub.email + ': ' + err.message);
+        sendErrors++;
       }
     }
   }
 
-  console.log('\nDone. Sent: ' + sent + ', Skipped: ' + skipped + ', Errors: ' + errors);
-  if (errors > 0) process.exit(1);
+  console.log('\nDone. Sent: ' + sent + ', Skipped: ' + skipped + ', Weather errors: ' + weatherErrors + ', Send errors: ' + sendErrors);
+
+  // Only fail the workflow if emails actually failed to send.
+  // Weather API blips on a no-alert night are not workflow failures.
+  if (sendErrors > 0) {
+    console.error('Exiting with error — ' + sendErrors + ' email(s) failed to send.');
+    process.exit(1);
+  }
 }
 
 main().catch(function(err) {
